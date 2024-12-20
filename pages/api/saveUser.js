@@ -1,6 +1,11 @@
 import axios from 'axios';
 
-const GITHUB_FILE_PATH = process.env.GITHUB_FILE_PATH;
+const GITHUB_API_URL = "https://api.github.com";
+const REPO_OWNER = "doetoeri"; // GitHub 사용자명
+const REPO_NAME = "primeu"; // 리포지토리 이름
+const FILE_PATH = "data/users.json"; // 업데이트할 파일 경로
+const BRANCH = "main"; // 업데이트할 브랜치
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN; // Vercel 환경 변수에 저장된 GitHub Personal Access Token
 
 export default async function handler(req, res) {
     if (req.method === 'POST') {
@@ -11,9 +16,15 @@ export default async function handler(req, res) {
         }
 
         try {
-            // GitHub에서 JSON 데이터 가져오기
-            const response = await axios.get(GITHUB_FILE_PATH);
-            const users = response.data;
+            // GitHub에서 현재 파일 내용 가져오기
+            const { data: fileData } = await axios.get(
+                `${GITHUB_API_URL}/repos/${REPO_OWNER}/${REPO_NAME}/contents/${FILE_PATH}`,
+                {
+                    headers: { Authorization: `Bearer ${GITHUB_TOKEN}` },
+                }
+            );
+
+            const users = JSON.parse(Buffer.from(fileData.content, 'base64').toString('utf-8'));
 
             // 중복 사용자 확인
             if (users.some(user => user.prime === prime || user.name === name)) {
@@ -22,17 +33,29 @@ export default async function handler(req, res) {
 
             // 새 사용자 추가
             const updatedUsers = [...users, { name, prime }];
+            const updatedContent = Buffer.from(JSON.stringify(updatedUsers, null, 2)).toString('base64');
 
-            // GitHub API를 통해 업데이트하는 로직 필요 (현재는 업데이트 로직 없음)
-            res.status(201).json({
-                message: 'User saved successfully (This is a read-only simulation)',
-                updatedUsers,
-            });
+            // GitHub에 파일 업데이트 요청
+            await axios.put(
+                `${GITHUB_API_URL}/repos/${REPO_OWNER}/${REPO_NAME}/contents/${FILE_PATH}`,
+                {
+                    message: `Add user: ${name}`,
+                    content: updatedContent,
+                    sha: fileData.sha, // 현재 파일의 SHA 값 필요
+                    branch: BRANCH,
+                },
+                {
+                    headers: { Authorization: `Bearer ${GITHUB_TOKEN}` },
+                }
+            );
+
+            res.status(201).json({ message: 'User saved successfully', updatedUsers });
         } catch (error) {
             console.error(error);
-            res.status(500).json({ error: 'Failed to fetch or update users' });
+            res.status(500).json({ error: 'Failed to update GitHub file' });
         }
     } else {
         res.status(405).json({ error: 'Method Not Allowed' });
     }
 }
+ㅍ
