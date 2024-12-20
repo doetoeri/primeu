@@ -3,6 +3,7 @@ export default function handler(req, res) {
         const start = parseInt(req.query.start || '2', 10);
         let num = start;
 
+        // 소수 판별 함수
         function isPrime(n) {
             if (n < 2) return false;
             for (let i = 2; i * i <= n; i++) {
